@@ -25,8 +25,17 @@ end top_basys3;
 architecture top_basys3_arch of top_basys3 is
 
     -- signal declarations
-    
-  
+    signal w_FSM1_o: std_logic_vector (3 downto 0);
+    signal w_FSM2_o: std_logic_vector (3 downto 0);
+    signal w_FSM_clk: std_logic;
+    signal w_TDM4_clk: std_logic;
+    signal w_orGate1: std_logic;
+    signal w_orGate2: std_logic;
+    signal w_Fseg: std_logic_vector (6 downto 0);
+    signal w_seg1: std_logic_vector (6 downto 0);
+    signal w_seg2: std_logic_vector (6 downto 0);
+
+ 
 	-- component declarations
     component sevenseg_decoder is
         port (
@@ -70,9 +79,90 @@ architecture top_basys3_arch of top_basys3 is
 	
 begin
 	-- PORT MAPS ----------------------------------------
+	
+	clock_Div1 : clock_divider
+	generic map (k_DIV => 25000000)
+	port map(
+	   i_clk => clk,
+	   i_reset => w_orGate2,
+	   o_clk => w_FSM_clk
+	);
+	
+	clock_Div2 : clock_divider
+	generic map (k_DIV => 200000)
+	port map(
+	   i_clk => clk,
+	   i_reset => w_orGate2,
+	   o_clk => w_TDM4_clk
+	);
     	
+   	FSM1_inst : elevator_controller_fsm port map(
+        
+    go_up_down => sw(0),
+    i_reset => w_orGate1,
+    i_clk => clk,
+    is_stopped => sw(1),
+    o_floor => w_FSM1_o
+     
+    );
+    
+   	FSM2_inst : elevator_controller_fsm port map(
+        
+    go_up_down => sw(15),
+    i_reset => w_orGate1,
+    i_clk => w_FSM_clk,
+    is_stopped => sw(14),
+    o_floor => w_FSM2_o
+     
+    );
+    
+    sevenseg1_inst : sevenseg_decoder port map(
+    
+    i_Hex => w_FSM1_o,
+    o_seg_n => w_seg1
+    
+    );
+   
+    sevenseg2_inst : sevenseg_decoder port map(
+    
+    i_Hex => w_FSM2_o,
+    o_seg_n => w_seg2
+    
+    );
+    
+    sevensegF_inst : sevenseg_decoder port map(
+    
+    i_Hex => "1111",
+    o_seg_n => w_Fseg
+    
+    );
+    
+    TDM4_inst: TDM4
+    generic map (k_WIDTH => 7)
+    port map (
+        i_reset => w_orGate1,
+        i_clk => w_TDM4_clk,
+        i_D3 => w_Fseg,
+        i_D2 => w_seg2,
+        i_D1 => w_Fseg,
+        i_D0 => w_seg1,
+        o_data => seg(6 downto 0),
+        o_sel => an(3 downto 0)
+        --C3C Josh Burke helped me realize I was using the wrong seg and an here.
+       );
+    
+    
+    
 	
 	-- CONCURRENT STATEMENTS ----------------------------
+	
+	w_orGate1 <= btnU or btnL;
+	w_orGate2 <= btnU or btnR;
+	
+	led(15) <= w_FSM_clk;
+	led(14 downto 0) <= (others => '0');
+
+	
 	
 	-- LED 15 gets the FSM slow clock signal. The rest are grounded.
 	
